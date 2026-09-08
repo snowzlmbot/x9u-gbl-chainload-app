@@ -1,0 +1,50 @@
+name: Build APK validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Set up Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build debug-signed validation APK
+        run: ./build-app.sh
+
+      - name: Verify APK and digest
+        run: |
+          set -eu
+          cd dist
+          sha256sum --check SHA256SUMS
+          test -s x9u-root-flasher-v0.2.2.apk
+
+      - name: Upload validation APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: x9u-root-flasher-v0.2.2-validation
+          path: |
+            dist/x9u-root-flasher-v0.2.2.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
