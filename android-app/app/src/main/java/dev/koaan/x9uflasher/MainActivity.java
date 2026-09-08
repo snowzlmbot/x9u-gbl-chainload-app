@@ -105,6 +105,11 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void exploitPreflight(String callback) {
+            worker.execute(() -> deliver(callback, RootOps.exploitPreflight(MainActivity.this)));
+        }
+
+        @JavascriptInterface
         public void flash(String confirmation, String callback) {
             worker.execute(() -> deliver(callback,
                     RootOps.flash(MainActivity.this, confirmation)));

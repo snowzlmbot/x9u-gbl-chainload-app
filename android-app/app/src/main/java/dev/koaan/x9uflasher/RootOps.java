@@ -25,6 +25,8 @@ final class RootOps {
     private static final String BROKER_LOG = ".x9u_root_broker.log";
     private static final String PRELOAD_LOG = ".x9u_preload.log";
     private static final String FORMAL_PROBE_LOG = ".x9u_formal_preload_probe.log";
+    private static final String PREFLIGHT_LOG = ".x9u_preflight.log";
+    private static final String PREFLIGHT_MARKER = "X9U_PRELOAD_PREFLIGHT_OK";
     private static final String FORMAL_PROBE_ENTER = "X9U_PRELOAD_CONSTRUCTOR_ENTER";
     private static final String FORMAL_PROBE_OK = "X9U_PRELOAD_CONSTRUCTOR_OK";
     private static final String PROBE_LOG = ".x9u_preload_probe.log";
@@ -34,7 +36,7 @@ final class RootOps {
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
 
     private static final String PRELOAD_SHA256 =
-            "1f23e3dd854358bd0d5f70f37b495ce72c4d3efd38b256751995ab332417ba53";
+            "2306e6dce3e8871cb5496f1159f9b1884ff61cb9f733e23257095dc15de31fd1";
     private static final String ABL_SHA256 =
             "4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d";
     private static final String EFI_SHA256 =
@@ -463,6 +465,49 @@ final class RootOps {
             return failure("Formal preload constructor probe failed", error);
         }
     }
+    static String exploitPreflight(Context context) {
+        recordAttempt(context, "PREFLIGHT_START", "no-kernel-exploit");
+        try {
+            String problem = compatibilityProblem();
+            if (problem != null) {
+                finalizeAttempt(context, "PREFLIGHT_REJECTED", problem);
+                return response(false, problem + "; preflight was not run.", "")
+                        .put("preflight", false).toString();
+            }
+            File preload = preloadFile(context);
+            if (!preload.isFile() || !PRELOAD_SHA256.equals(sha256(preload))) {
+                finalizeAttempt(context, "PREFLIGHT_REJECTED", "payload-check-failed");
+                return response(false, "Embedded preload.so failed verification.", preload.getAbsolutePath())
+                        .put("preflight", false).toString();
+            }
+            File log = new File(context.getFilesDir(), PREFLIGHT_LOG);
+            writeSynced(log, "");
+            recordAttempt(context, "PREFLIGHT_EXEC_START", "log=" + PREFLIGHT_LOG);
+            CommandResult result = commandToFile(
+                    15,
+                    new String[]{
+                            "LD_PRELOAD", preload.getAbsolutePath(),
+                            "X9U_PRELOAD_LOG", log.getAbsolutePath(),
+                            "X9U_PRELOAD_PREFLIGHT", "1"
+                    },
+                    log,
+                    "/system/bin/true");
+            String output = log.isFile() ? readTail(log, 8000) : "";
+            boolean ok = result.exitCode == 0 && output.contains(PREFLIGHT_MARKER);
+            finalizeAttempt(context, ok ? "PREFLIGHT_SUCCESS" : "PREFLIGHT_FAILED",
+                    "exit=" + result.exitCode + " marker=" + output.contains(PREFLIGHT_MARKER));
+            return response(ok,
+                    ok ? "Exploit preflight completed; kernel exploit was not run."
+                            : "Exploit preflight did not complete; kernel exploit was not run.",
+                    output)
+                    .put("preflight", ok)
+                    .put("exitCode", result.exitCode)
+                    .toString();
+        } catch (Throwable error) {
+            finalizeAttempt(context, "PREFLIGHT_EXCEPTION", String.valueOf(error.getMessage()));
+            return failure("Exploit preflight failed", error);
+        }
+    }
     static String preloadLoadProbe(Context context) {
         recordAttempt(context, "PROBE_START", "no-exploit");
         try {
@@ -581,6 +626,7 @@ final class RootOps {
             CommandResult exploit = commandToFile(300,
                     new String[]{
                             "LD_PRELOAD", preload.getAbsolutePath(),
+                            "X9U_PRELOAD_LOG", preloadLog.getAbsolutePath(),
                             "X9U_HOME", home.getAbsolutePath(),
                             "HOME", home.getAbsolutePath(),
                             "TMPDIR", home.getAbsolutePath()
