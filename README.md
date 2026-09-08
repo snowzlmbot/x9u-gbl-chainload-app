@@ -79,6 +79,11 @@ command automatically.
 
 ## Supported targets
 
+The compatibility gate requires a supported project ID, an exact kernel match,
+and a firmware release that has a matching packaged payload. A shared kernel
+release string is not sufficient because the preload offsets and boot-chain
+images are firmware-specific.
+
 The supported project IDs are:
 
 ```text
@@ -98,8 +103,14 @@ The only accepted kernel target is:
 6.12.58-android16-6-g7704a1ae279b-ab15213644-4k
 ```
 
-Any other kernel is rejected before the preload or partition-writing code can
-run.
+The packaged payload is only considered validated for the firmware releases
+listed in the builder documentation. **PMA120 `16.0.10.501`
+(`PMA120_16.0.10.501(CN01B110P02)`) is not in that validated list and the app
+must refuse to run the preload or write partitions on it.** Do not bypass this
+gate by changing only the displayed firmware string.
+
+Any other project, firmware, or kernel is rejected before the preload or
+partition-writing code can run.
 
 ## Embedded payloads
 
