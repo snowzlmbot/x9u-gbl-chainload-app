@@ -17,12 +17,6 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 final class RootOps {
-    private static final String PMA110_PROJECT_ID = "25021";
-    private static final String PMA120_PROJECT_ID = "25022";
-    private static final String CPH2841_PROJECT_ID = "25211";
-    private static final String EXPECTED_KERNEL =
-            "6.12.58-android16-6-g7704a1ae279b-ab15213644-4k";
-
     private static final String BROKER_ASSET = "x9u-root-broker.sh";
     private static final String BROKER_SCRIPT = ".x9u_root_broker.sh";
     private static final String BROKER_READY = ".x9u_root_ready";
@@ -154,42 +148,33 @@ final class RootOps {
         return "";
     }
 
-    private static boolean supportedProject(String project) {
-        String normalizedProject = project == null ? "" : project.trim();
-        return PMA110_PROJECT_ID.equals(normalizedProject)
-                || PMA120_PROJECT_ID.equals(normalizedProject)
-                || CPH2841_PROJECT_ID.equals(normalizedProject);
-    }
-
     private static String compatibilityProblem() {
         String model = Build.MODEL == null ? "" : Build.MODEL.trim();
         String project = projectId();
-        if (!supportedProject(project)) {
-            return "Unsupported project ID: "
-                    + (project.isEmpty() ? "unknown" : project)
-                    + " (reported model: " + model + ")";
-        }
-        String release = kernel();
-        if (!EXPECTED_KERNEL.equals(release)) {
-            return "Kernel mismatch: " + release;
-        }
-        return null;
+        String release = firmware();
+        String kernelRelease = kernel();
+        return CompatibilityPolicy.problem(model, project, release, kernelRelease);
     }
 
     static String deviceInfo(Context context) {
         try {
             String model = Build.MODEL == null ? "" : Build.MODEL.trim();
             String project = projectId();
-            String release = kernel();
+            String release = firmware();
+            String kernelRelease = kernel();
+            String problem = CompatibilityPolicy.problem(model, project, release, kernelRelease);
             File preload = preloadFile(context);
             return new JSONObject()
                     .put("device", "OPPO Find X9 Ultra")
                     .put("model", model)
                     .put("projectId", project)
-                    .put("firmware", firmware())
-                    .put("kernel", release)
-                    .put("supported", supportedProject(project))
-                    .put("kernelCompatible", EXPECTED_KERNEL.equals(release))
+                    .put("firmware", release)
+                    .put("kernel", kernelRelease)
+                    .put("supported", CompatibilityPolicy.supportedProject(project))
+                    .put("targetRecognized", CompatibilityPolicy.targetRecognized(project, release))
+                    .put("firmwareCompatible", CompatibilityPolicy.firmwareCompatible(project, release))
+                    .put("kernelCompatible", CompatibilityPolicy.kernelCompatible(kernelRelease))
+                    .put("compatibilityProblem", problem == null ? "" : problem)
                     .put("preloadPresent", preload.isFile())
                     .toString();
         } catch (Throwable error) {
@@ -211,6 +196,14 @@ final class RootOps {
             }
             return output.toString(StandardCharsets.UTF_8.name());
         }
+    }
+
+    private static String readTail(File file, int maxChars) throws IOException {
+        String value = readText(file).trim();
+        if (value.length() <= maxChars) {
+            return value;
+        }
+        return "...[truncated]\n" + value.substring(value.length() - maxChars);
     }
 
     private static void writeSynced(File file, String value) throws Exception {
@@ -314,6 +307,9 @@ final class RootOps {
         try {
             File preload = preloadFile(context);
             String preloadHash = preload.isFile() ? sha256(preload) : "missing";
+            String compatibility = compatibilityProblem();
+            File brokerLog = new File(context.getFilesDir(), BROKER_LOG);
+            String lastLog = brokerLog.isFile() ? readTail(brokerLog, 12000) : "";
             return new JSONObject()
                     .put("ok", true)
                     .put("root", rootAvailable(context))
@@ -321,6 +317,9 @@ final class RootOps {
                     .put("uninstallReady", uninstallReady(context))
                     .put("preloadOk", PRELOAD_SHA256.equals(preloadHash))
                     .put("preloadHash", preloadHash)
+                    .put("supported", compatibility == null)
+                    .put("compatibilityProblem", compatibility == null ? "" : compatibility)
+                    .put("lastLog", lastLog)
                     .put("ablHash", ABL_SHA256)
                     .put("efiHash", EFI_SHA256)
                     .put("emptyEfispHash", EMPTY_EFISP_SHA256)
