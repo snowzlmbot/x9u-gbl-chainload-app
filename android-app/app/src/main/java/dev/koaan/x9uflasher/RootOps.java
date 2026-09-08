@@ -32,7 +32,6 @@ final class RootOps {
     private static final String PROBE_LOG = ".x9u_preload_probe.log";
     private static final String PROBE_MARKER = "X9U_PRELOAD_PROBE_OK";
     private static final String ATTEMPT_JOURNAL = ".x9u_attempt_journal";
-    private static final String SAFETY_LOCK = ".x9u_safety_lock";
     private static final String INSTALL_READY = ".x9u_install_ready";
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
 
@@ -207,7 +206,6 @@ final class RootOps {
                     .put("kernelCompatible", CompatibilityPolicy.kernelCompatible(kernelRelease))
                     .put("compatibilityProblem", problem == null ? "" : problem)
                     .put("preloadPresent", preload.isFile())
-                    .put("safetyLocked", safetyLockReason(context) != null)
                     .toString();
         } catch (Throwable error) {
             return failure("Could not read device information", error);
@@ -313,66 +311,6 @@ final class RootOps {
             }
         }
         return result.toString();
-    }
-
-    private static String safetyLockReason(Context context) {
-        File lock = new File(context.getFilesDir(), SAFETY_LOCK);
-        try {
-            if (lock.isFile()) {
-                String saved = readText(lock).trim();
-                if (!saved.isEmpty()) {
-                    return saved;
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-
-        String bootReason = property("ro.boot.bootreason");
-        String sysReason = property("sys.boot.reason");
-        String journal = attemptJournal(context);
-        String lower = (bootReason + " " + sysReason + " " + journal)
-                .toLowerCase(Locale.ROOT);
-        String reason = null;
-        if (lower.contains("kernel_panic")) {
-            reason = "Device reported kernel_panic; high-risk actions are locked.";
-        } else if (journal.contains("exit=159") || lower.contains("broker=timeout")) {
-            reason = "Previous Root attempt ended with SIGSYS/broker timeout; high-risk actions are locked.";
-        }
-        if (reason != null) {
-            try {
-                writeSynced(lock, reason + "\n");
-            } catch (Throwable ignored) {
-            }
-        }
-        return reason;
-    }
-
-    private static String safetyBlocked(Context context, String operation) {
-        String reason = safetyLockReason(context);
-        if (reason == null) {
-            return null;
-        }
-        try {
-            return response(false,
-                    "Safety lock active; " + operation + " was not run.", reason)
-                    .put("safetyLocked", true)
-                    .put("safetyReason", reason)
-                    .toString();
-        } catch (Throwable error) {
-            return failure("Safety lock active", error);
-        }
-    }
-
-    static String recordSafetyStatus(Context context) {
-        String reason = safetyLockReason(context);
-        try {
-            return new JSONObject()
-                    .put("safetyLocked", reason != null)
-                    .put("safetyReason", reason == null ? "" : reason)
-                    .toString();
-        } catch (Throwable error) {
-            return failure("Safety status check failed", error);
-        }
     }
 
     static void recordSessionStart(Context context) {
@@ -616,7 +554,6 @@ final class RootOps {
 
     static String status(Context context) {
         try {
-            String safetyReason = safetyLockReason(context);
             File preload = preloadFile(context);
             String preloadHash = preload.isFile() ? sha256(preload) : "missing";
             String compatibility = compatibilityProblem();
@@ -626,7 +563,7 @@ final class RootOps {
             String preloadOutput = preloadLog.isFile() ? readTail(preloadLog, 12000) : "";
             return new JSONObject()
                     .put("ok", true)
-                    .put("root", safetyReason == null && rootAvailable(context))
+                    .put("root", rootAvailable(context))
                     .put("installReady", installReady(context))
                     .put("uninstallReady", uninstallReady(context))
                     .put("preloadOk", PRELOAD_SHA256.equals(preloadHash))
@@ -637,8 +574,6 @@ final class RootOps {
                     .put("preloadOutput", preloadOutput)
                     .put("attemptJournal", attemptJournal(context))
                     .put("pstore", pstoreDiagnostics())
-                    .put("safetyLocked", safetyReason != null)
-                    .put("safetyReason", safetyReason == null ? "" : safetyReason)
                     .put("ablHash", ABL_SHA256)
                     .put("efiHash", EFI_SHA256)
                     .put("emptyEfispHash", EMPTY_EFISP_SHA256)
@@ -649,10 +584,6 @@ final class RootOps {
     }
 
     static String enableRoot(Context context) {
-        String blocked = safetyBlocked(context, "temporary root");
-        if (blocked != null) {
-            return blocked;
-        }
         recordAttempt(context, "START", "temporary-root");
         try {
             recordAttempt(context, "CHECKING_COMPATIBILITY", "");
@@ -761,10 +692,6 @@ final class RootOps {
         if (!"FLASH".equals(confirmation)) {
             return failure("Flash confirmation was not accepted", null);
         }
-        String blocked = safetyBlocked(context, "partition flash");
-        if (blocked != null) {
-            return blocked;
-        }
 
         recordAttempt(context, "FLASH_START", "partition-chainload");
         BrokerResult flashResult = null;
@@ -823,10 +750,6 @@ final class RootOps {
         if (!"ERASE".equals(confirmation)) {
             return failure("Uninstall confirmation was not accepted", null);
         }
-        String blocked = safetyBlocked(context, "EFISP erase");
-        if (blocked != null) {
-            return blocked;
-        }
 
         recordAttempt(context, "UNINSTALL_START", "empty-efisp");
         BrokerResult uninstallResult = null;
@@ -880,10 +803,6 @@ final class RootOps {
     }
 
     static String rebootFastboot(Context context) {
-        String blocked = safetyBlocked(context, "fastboot reboot");
-        if (blocked != null) {
-            return blocked;
-        }
         recordAttempt(context, "REBOOT_START", "fastboot");
         try {
             String problem = compatibilityProblem();
