@@ -34,10 +34,12 @@ jobs:
         run: ./build-app.sh
 
       - name: Verify APK and digest
+        id: version
         run: |
           set -eu
           version_name=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' android-app/app/build.gradle.kts)
           test -n "$version_name"
+          echo "name=$version_name" >> "$GITHUB_OUTPUT"
           cd dist
           sha256sum --check SHA256SUMS
           test -s "x9u-root-flasher-v${version_name}.apk"
@@ -45,10 +47,10 @@ jobs:
       - name: Upload validation APK
         uses: actions/upload-artifact@v4
         env:
-          VERSION_NAME: "0.2.3"
+          VERSION_NAME: "${{ steps.version.outputs.name }}"
         with:
-          name: x9u-root-flasher-v0.2.3-validation
+          name: x9u-root-flasher-v${{ steps.version.outputs.name }}-validation
           path: |
-            dist/x9u-root-flasher-v0.2.3.apk
+            dist/x9u-root-flasher-v${{ steps.version.outputs.name }}.apk
             dist/SHA256SUMS
           if-no-files-found: error

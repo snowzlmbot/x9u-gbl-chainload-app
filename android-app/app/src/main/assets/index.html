@@ -109,7 +109,7 @@ html.light{--bg:#f3f5fa;--top:#ffffff;--card:#ffffff;--card2:#f0f3f9;--line:#d9d
     <div class="title">X9 Ultra GBL Chainload</div>
     <p class="about-note">Two-step temporary-root and GBL-chainload installer. It does not unlock the Android bootloader or format user data.</p>
     <div class="about-list">
-      <div class="about-row"><small>VERSION</small><strong>0.2.3</strong></div>
+      <div class="about-row"><small>VERSION</small><strong>0.2.4</strong></div>
       <div class="about-row"><small>SUPPORTED PROJECT IDS</small><strong>25021 · 25022 · 25211</strong></div>
       <div class="about-row"><small>KNOWN MODEL LABELS</small><strong>PMA110 · PMA120 · CPH2841<br><span style="color:var(--muted);font-size:11px">Informational only; firmware may change the model label.</span></strong></div>
       <div class="about-row"><small>KERNEL TARGET</small><strong>6.12.58-android16-6-g7704a1ae279b-ab15213644-4k</strong></div>
@@ -187,7 +187,7 @@ byId('model').textContent=device.model||'Unknown';byId('project').textContent=de
 byId('modelDetail').classList.add(device.supported?'good':'bad');byId('projectDetail').classList.add(device.supported?'good':'bad');byId('firmwareDetail').classList.add(device.firmwareCompatible?'good':(device.targetRecognized?'warn':'bad'));byId('kernelDetail').classList.add(device.kernelCompatible?'good':'bad');
 byId('headState').textContent=device.compatibilityProblem||'X9 Ultra · compatible payload';byId('headState').classList.add(device.supported&&device.firmwareCompatible&&device.kernelCompatible?'good':(device.targetRecognized?'warn':'bad'));
 updateButtons();
-busy(true,'Checking temporary root…');X9U.status(callback(r=>{busy(false);setStatus(r);if(r.lastLog)appendLog('Previous root-service log',{message:'Saved from the last attempt',log:r.lastLog});if(r.attemptJournal)appendLog('Attempt journal',{message:'Persisted across app restarts',log:r.attemptJournal});if(!r.preloadOk)appendLog('Payload verification',r)}));
+busy(true,'Checking temporary root…');X9U.status(callback(r=>{busy(false);setStatus(r);if(r.preloadOutput)appendLog('Previous preload output',{message:'Native output saved across reboot',log:r.preloadOutput});if(r.lastLog)appendLog('Previous root-service log',{message:'Saved from the last attempt',log:r.lastLog});if(r.attemptJournal)appendLog('Attempt journal',{message:'Persisted across app restarts',log:r.attemptJournal});if(r.pstore)appendLog('Kernel pstore',{message:'Persistent crash buffer, when exposed by the device',log:r.pstore});if(!r.preloadOk)appendLog('Payload verification',r)}));
 </script>
 </body>
 </html>
