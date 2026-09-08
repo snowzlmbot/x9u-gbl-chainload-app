@@ -25,6 +25,12 @@ root, change SELinux, write partitions, or start the broker. Use this probe
 first to distinguish dynamic-loader/device-environment failures from failures
 inside the firmware-specific exploit path.
 
+The app also includes a **formal constructor probe** for the exact packaged
+`.501` payload. It sets `X9U_NO_EXPLOIT=1`, so the payload records constructor
+entry/completion and returns without invoking the kernel exploit. A successful
+probe proves that this exact ELF can be loaded and return safely; it does not
+prove Root or exploit compatibility.
+
 Created by [koaaN](https://github.com/koaaN). The matching CVE-2026-43499
 exploit and preload builder is available at
 [koaaN/x9u-preload-builder](https://github.com/koaaN/x9u-preload-builder).
@@ -121,6 +127,14 @@ proof of successful execution on every handset; on-device validation still
 requires a device owner and recovery path. Do not bypass this gate by changing
 only the displayed firmware string.
 
+The `v0.2.6` payload was rebuilt from OTA archive revision
+`538e0901da8d70985370bf42f74657bd348ff997` with builder revision
+`18808341a788c2ccb5fb3f071d37d6009c959199` plus the audited constructor probe
+patch in `tools/preload-constructor-patch.diff`. The exact input digests are
+`boot.img=eaabe8a7df06d70fb0b40a0431d230fe54f19e124cfd3a3df408f053d1afd1de`
+and
+`xbl_config.img=682ec89d49f33f100d689c1f5b5dd83ae9751d8ea5fccfa6bf62fc03262b5e31`.
+
 Any other project, firmware, or kernel is rejected before the preload or
 partition-writing code can run.
 
@@ -128,7 +142,7 @@ partition-writing code can run.
 
 | File | SHA-256 |
 |---|---|
-| `libx9upreload.so` | `c76e038993aa085b4cbf0d7cec179cbb91247793d5bdac2b0dbc8e4312624e76` |
+| `libx9upreload.so` (PMA120 `.501` rebuild) | `1f23e3dd854358bd0d5f70f37b495ce72c4d3efd38b256751995ab332417ba53` |
 | `libx9uprobe.so` source build (no-exploit diagnostic probe) | `d331e6c4fb1630a87a6ce4e6b49f0945d07ba5ede0f2e6987b352a6cb63431bf` |
 | `abl.img` | `4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d` |
 | `installed-mode2.efi` | `35560f8e6fd706a3768f26f692467491c90425881a8d80bf237341215c04cac5` |
@@ -140,7 +154,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.5.apk
+adb install -r dist/x9u-root-flasher-v0.2.6.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
@@ -150,7 +164,7 @@ public distribution.
 ## Automated releases
 
 `.github/workflows/release.yml` builds and publishes an APK whenever a tag
-matching the app version is pushed, such as `v0.2.5`. It can also be run
+matching the app version is pushed, such as `v0.2.6`. It can also be run
 manually with the same tag. The workflow checks the APK checksum, uploads a
 workflow artifact, and creates or updates the corresponding GitHub Release.
 
