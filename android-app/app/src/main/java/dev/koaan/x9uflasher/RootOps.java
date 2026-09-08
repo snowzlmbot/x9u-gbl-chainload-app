@@ -24,6 +24,9 @@ final class RootOps {
     private static final String BROKER_RESPONSE = ".x9u_root_response";
     private static final String BROKER_LOG = ".x9u_root_broker.log";
     private static final String PRELOAD_LOG = ".x9u_preload.log";
+    private static final String FORMAL_PROBE_LOG = ".x9u_formal_preload_probe.log";
+    private static final String FORMAL_PROBE_ENTER = "X9U_PRELOAD_CONSTRUCTOR_ENTER";
+    private static final String FORMAL_PROBE_OK = "X9U_PRELOAD_CONSTRUCTOR_OK";
     private static final String PROBE_LOG = ".x9u_preload_probe.log";
     private static final String PROBE_MARKER = "X9U_PRELOAD_PROBE_OK";
     private static final String ATTEMPT_JOURNAL = ".x9u_attempt_journal";
@@ -31,7 +34,7 @@ final class RootOps {
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
 
     private static final String PRELOAD_SHA256 =
-            "c76e038993aa085b4cbf0d7cec179cbb91247793d5bdac2b0dbc8e4312624e76";
+            "1f23e3dd854358bd0d5f70f37b495ce72c4d3efd38b256751995ab332417ba53";
     private static final String ABL_SHA256 =
             "4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d";
     private static final String EFI_SHA256 =
@@ -415,6 +418,51 @@ final class RootOps {
         }
     }
 
+    static String formalPreloadProbe(Context context) {
+        recordAttempt(context, "FORMAL_PROBE_START", "no-exploit");
+        try {
+            String problem = compatibilityProblem();
+            if (problem != null) {
+                finalizeAttempt(context, "FORMAL_PROBE_REJECTED", problem);
+                return response(false, problem + "; formal probe was not run.", "")
+                        .put("probe", false).toString();
+            }
+            File preload = preloadFile(context);
+            if (!preload.isFile() || !PRELOAD_SHA256.equals(sha256(preload))) {
+                finalizeAttempt(context, "FORMAL_PROBE_REJECTED", "payload-check-failed");
+                return response(false, "Embedded preload.so failed verification.", preload.getAbsolutePath())
+                        .put("probe", false).toString();
+            }
+            File log = new File(context.getFilesDir(), FORMAL_PROBE_LOG);
+            writeSynced(log, "");
+            recordAttempt(context, "FORMAL_PROBE_EXEC_START", "log=" + FORMAL_PROBE_LOG);
+            CommandResult result = commandToFile(
+                    15,
+                    new String[]{
+                            "LD_PRELOAD", preload.getAbsolutePath(),
+                            "X9U_PRELOAD_LOG", log.getAbsolutePath(),
+                            "X9U_NO_EXPLOIT", "1"
+                    },
+                    log,
+                    "/system/bin/true");
+            String output = log.isFile() ? readTail(log, 4000) : "";
+            boolean ok = result.exitCode == 0 && output.contains(FORMAL_PROBE_ENTER)
+                    && output.contains(FORMAL_PROBE_OK);
+            finalizeAttempt(context, ok ? "FORMAL_PROBE_SUCCESS" : "FORMAL_PROBE_FAILED",
+                    "exit=" + result.exitCode + " enter=" + output.contains(FORMAL_PROBE_ENTER)
+                            + " ok=" + output.contains(FORMAL_PROBE_OK));
+            return response(ok,
+                    ok ? "Formal preload constructor completed; exploit was not run."
+                            : "Formal preload constructor did not complete; exploit was not run.",
+                    output)
+                    .put("probe", ok)
+                    .put("exitCode", result.exitCode)
+                    .toString();
+        } catch (Throwable error) {
+            finalizeAttempt(context, "FORMAL_PROBE_EXCEPTION", String.valueOf(error.getMessage()));
+            return failure("Formal preload constructor probe failed", error);
+        }
+    }
     static String preloadLoadProbe(Context context) {
         recordAttempt(context, "PROBE_START", "no-exploit");
         try {
@@ -457,6 +505,7 @@ final class RootOps {
             return failure("Preload load probe failed", error);
         }
     }
+
 
     static String status(Context context) {
         try {

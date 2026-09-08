@@ -100,6 +100,11 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void formalPreloadProbe(String callback) {
+            worker.execute(() -> deliver(callback, RootOps.formalPreloadProbe(MainActivity.this)));
+        }
+
+        @JavascriptInterface
         public void flash(String confirmation, String callback) {
             worker.execute(() -> deliver(callback,
                     RootOps.flash(MainActivity.this, confirmation)));
