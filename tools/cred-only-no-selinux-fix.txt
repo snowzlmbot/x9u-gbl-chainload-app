@@ -1,0 +1,7 @@
+Cred-only/no-SELinux-write builder change applied to source/src/main.c:
+
+- Replace the composite install_cred_then_selinux_zero follow-up with install_cred_only.
+- Preserve SELinux enforcing state; skip direct_reload_selinux_policy and the post-write SELinux read.
+- Keep the existing slide retry count, exact generated shift, and runtime CPU fixes unchanged.
+
+The generated PMA120 .501 payload is embedded in the app and verified separately by SHA-256.
