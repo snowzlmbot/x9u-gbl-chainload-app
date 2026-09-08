@@ -1,0 +1,46 @@
+name: Verify compatibility policy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Set up Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Run compatibility policy regression test
+        run: |
+          set -eu
+          rm -rf "$RUNNER_TEMP/x9u-policy"
+          mkdir -p "$RUNNER_TEMP/x9u-policy"
+          javac -d "$RUNNER_TEMP/x9u-policy" \
+            android-app/app/src/main/java/dev/koaan/x9uflasher/CompatibilityPolicy.java \
+            tools/CompatibilityPolicyTest.java
+          java -cp "$RUNNER_TEMP/x9u-policy" dev.koaan.x9uflasher.CompatibilityPolicyTest
+      - name: Check embedded web asset syntax
+        env:
+          X9U_TEMP: ${{ runner.temp }}
+        run: |
+          set -eu
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import subprocess
+          html = Path("android-app/app/src/main/assets/index.html").read_text()
+          script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+          out = Path(os.environ["X9U_TEMP"]) / "x9u-index.js"
+          out.write_text(script)
+          subprocess.run(["node", "--check", str(out)], check=True)
+          print("index.html script: PASS")
+          PY
