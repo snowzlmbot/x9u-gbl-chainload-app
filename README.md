@@ -31,17 +31,11 @@ entry/completion and returns without invoking the kernel exploit. A successful
 probe proves that this exact ELF can be loaded and return safely; it does not
 prove Root or exploit compatibility.
 
-`v0.2.12` build also includes an **exploit preflight**.
+The `v0.2.10` build also includes an **exploit preflight**. It performs only the
 payload's user-space initialization, CPU selection, startup-context logging, and
 CPU pinning, then returns before KASLR leakage, futex/pselect activity, kernel
 writes, SELinux changes, or Root setup. The normal Root action additionally
 persists the payload's native output to the app-private log.
-
-When the device reports `kernel_panic`, or the previous attempt records a
-`SIGSYS`/`exit=159` or broker timeout, the app enters a persistent safety lock.
-Root, partition flashing, and recovery/fastboot reboot controls are disabled;
-read-only probes and log export remain available. This lock is intentional and
-is not bypassed by the app.
 
 Created by [koaaN](https://github.com/koaaN). The matching CVE-2026-43499
 exploit and preload builder is available at
