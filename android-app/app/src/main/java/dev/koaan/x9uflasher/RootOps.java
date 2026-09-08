@@ -23,6 +23,7 @@ final class RootOps {
     private static final String BROKER_REQUEST = ".x9u_root_request";
     private static final String BROKER_RESPONSE = ".x9u_root_response";
     private static final String BROKER_LOG = ".x9u_root_broker.log";
+    private static final String ATTEMPT_JOURNAL = ".x9u_attempt_journal";
     private static final String INSTALL_READY = ".x9u_install_ready";
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
 
@@ -213,6 +214,35 @@ final class RootOps {
         }
     }
 
+    private static void appendSynced(File file, String value) throws Exception {
+        try (FileOutputStream output = new FileOutputStream(file, true)) {
+            output.write(value.getBytes(StandardCharsets.UTF_8));
+            output.getFD().sync();
+        }
+    }
+
+    private static String attemptJournal(Context context) {
+        File journal = new File(context.getFilesDir(), ATTEMPT_JOURNAL);
+        try {
+            return journal.isFile() ? readTail(journal, 12000) : "";
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    private static void recordAttempt(Context context, String phase, String detail) {
+        try {
+            File journal = new File(context.getFilesDir(), ATTEMPT_JOURNAL);
+            String stamp = Long.toString(System.currentTimeMillis());
+            appendSynced(journal, stamp + " phase=" + phase + " " + detail + "\n");
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void finalizeAttempt(Context context, String result, String detail) {
+        recordAttempt(context, result, detail);
+    }
+
     private static void prepareBrokerScript(Context context) throws Exception {
         File target = new File(context.getFilesDir(), BROKER_SCRIPT);
         try (InputStream input = context.getAssets().open(BROKER_ASSET);
@@ -320,6 +350,7 @@ final class RootOps {
                     .put("supported", compatibility == null)
                     .put("compatibilityProblem", compatibility == null ? "" : compatibility)
                     .put("lastLog", lastLog)
+                    .put("attemptJournal", attemptJournal(context))
                     .put("ablHash", ABL_SHA256)
                     .put("efiHash", EFI_SHA256)
                     .put("emptyEfispHash", EMPTY_EFISP_SHA256)
@@ -330,25 +361,31 @@ final class RootOps {
     }
 
     static String enableRoot(Context context) {
+        recordAttempt(context, "START", "temporary-root");
         try {
+            recordAttempt(context, "CHECKING_COMPATIBILITY", "");
             String problem = compatibilityProblem();
             if (problem != null) {
+                finalizeAttempt(context, "REJECTED", problem);
                 return response(false, problem + "; nothing was run.", "")
                         .put("root", false).toString();
             }
 
             BrokerResult existing = brokerCommand(context, "PING", 500L);
             if (existing != null && existing.code == 0 && existing.log.contains("uid=0")) {
+                finalizeAttempt(context, "ROOT_ALREADY_AVAILABLE", "uid=0");
                 return response(true, "Temporary root is already available.", existing.log)
                         .put("root", true).toString();
             }
 
             File preload = preloadFile(context);
             if (!preload.isFile() || !PRELOAD_SHA256.equals(sha256(preload))) {
+                finalizeAttempt(context, "REJECTED", "preload-check-failed");
                 return response(false, "Embedded preload.so failed verification.",
                         preload.getAbsolutePath()).put("root", false).toString();
             }
 
+            recordAttempt(context, "STARTING_BROKER", "payload=" + PRELOAD_SHA256);
             prepareBrokerScript(context);
             File home = context.getFilesDir();
             new File(home, BROKER_READY).delete();
@@ -356,11 +393,10 @@ final class RootOps {
             new File(home, BROKER_REQUEST + ".pending").delete();
             new File(home, BROKER_RESPONSE).delete();
             File brokerLog = new File(home, BROKER_LOG);
-            brokerLog.delete();
 
             File brokerScript = new File(home, BROKER_SCRIPT);
             String launch = "/system/bin/sh " + shellQuote(brokerScript.getAbsolutePath())
-                    + " </dev/null >" + shellQuote(brokerLog.getAbsolutePath()) + " 2>&1 &";
+                    + " </dev/null >>" + shellQuote(brokerLog.getAbsolutePath()) + " 2>&1 &";
             CommandResult exploit = command(300,
                     new String[]{
                             "LD_PRELOAD", preload.getAbsolutePath(),
@@ -370,6 +406,7 @@ final class RootOps {
                     },
                     "/system/bin/sh", "-c", launch);
 
+            recordAttempt(context, "WAITING_FOR_BROKER", "exploitExit=" + exploit.exitCode);
             BrokerResult broker = brokerCommand(context, "PING", 15000L);
             boolean ok = broker != null && broker.code == 0 && broker.log.contains("uid=0");
             StringBuilder log = new StringBuilder(exploit.output);
@@ -384,6 +421,8 @@ final class RootOps {
                 if (log.length() > 0) log.append('\n');
                 log.append(broker.log);
             }
+            finalizeAttempt(context, ok ? "ROOT_SUCCESS" : "ROOT_FAILED",
+                    "exploitExit=" + exploit.exitCode + " broker=" + (broker == null ? "timeout" : broker.code));
             return response(ok,
                     ok ? "Temporary root obtained."
                             : "Root was not obtained; nothing was flashed.",
@@ -392,6 +431,7 @@ final class RootOps {
                     .put("exploitExit", exploit.exitCode)
                     .toString();
         } catch (Throwable error) {
+            finalizeAttempt(context, "ROOT_EXCEPTION", String.valueOf(error.getMessage()));
             return failure("Temporary-root attempt failed", error);
         }
     }
@@ -424,6 +464,7 @@ final class RootOps {
             return failure("Flash confirmation was not accepted", null);
         }
 
+        recordAttempt(context, "FLASH_START", "partition-chainload");
         BrokerResult flashResult = null;
         boolean brokerConfirmed = false;
         boolean operationTimedOut = false;
@@ -481,6 +522,7 @@ final class RootOps {
             return failure("Uninstall confirmation was not accepted", null);
         }
 
+        recordAttempt(context, "UNINSTALL_START", "empty-efisp");
         BrokerResult uninstallResult = null;
         boolean brokerConfirmed = false;
         boolean operationTimedOut = false;
@@ -532,6 +574,7 @@ final class RootOps {
     }
 
     static String rebootFastboot(Context context) {
+        recordAttempt(context, "REBOOT_START", "fastboot");
         try {
             String problem = compatibilityProblem();
             if (problem != null) {

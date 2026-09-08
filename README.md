@@ -12,10 +12,11 @@ GBL chainload path by writing ABL to both slots and `installed-mode2.efi` to the
 matching PMA120 `.501` OTA images and is accepted only on that exact firmware
 family and kernel release.
 
-The Uninstall page obtains temporary root, writes the packaged all-zero
-`efisp.img` to `efisp`, and reads the entire image back before offering a
-reboot to recovery / fastbootd. The user must then enter Recovery and format
-data manually; the app never formats user data itself.
+The app also keeps an append-only attempt journal and root-service log in its
+private files directory. These records are synced before each risky phase and
+are shown again after the app restarts, so a crash or reboot can be diagnosed
+without relying on volatile UI state. Reinstalling with `adb install -r` keeps
+the records; clearing app data removes them.
 
 Created by [koaaN](https://github.com/koaaN). The matching CVE-2026-43499
 exploit and preload builder is available at
@@ -131,7 +132,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.2.apk
+adb install -r dist/x9u-root-flasher-v0.2.3.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
@@ -141,7 +142,7 @@ public distribution.
 ## Automated releases
 
 `.github/workflows/release.yml` builds and publishes an APK whenever a tag
-matching the app version is pushed, such as `v0.2.2`. It can also be run
+matching the app version is pushed, such as `v0.2.3`. It can also be run
 manually with the same tag. The workflow checks the APK checksum, uploads a
 workflow artifact, and creates or updates the corresponding GitHub Release.
 
