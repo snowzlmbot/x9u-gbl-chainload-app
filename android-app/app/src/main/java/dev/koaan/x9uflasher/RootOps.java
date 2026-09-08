@@ -230,6 +230,33 @@ final class RootOps {
         }
     }
 
+    private static String bootDiagnostics() {
+        String bootId = "";
+        try {
+            File bootIdFile = new File("/proc/sys/kernel/random/boot_id");
+            if (bootIdFile.isFile()) {
+                bootId = readText(bootIdFile).trim();
+            }
+        } catch (Throwable ignored) {
+        }
+        String bootReason = property("ro.boot.bootreason");
+        if (bootReason.isEmpty()) {
+            bootReason = property("sys.boot.reason");
+        }
+        String uptime = "";
+        try {
+            uptime = readText(new File("/proc/uptime")).trim();
+        } catch (Throwable ignored) {
+        }
+        return "boot_id=" + (bootId.isEmpty() ? "unknown" : bootId)
+                + " bootreason=" + (bootReason.isEmpty() ? "unknown" : bootReason)
+                + " uptime=" + (uptime.isEmpty() ? "unknown" : uptime);
+    }
+
+    static void recordSessionStart(Context context) {
+        recordAttempt(context, "APP_START", bootDiagnostics());
+    }
+
     private static void recordAttempt(Context context, String phase, String detail) {
         try {
             File journal = new File(context.getFilesDir(), ATTEMPT_JOURNAL);

@@ -29,6 +29,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        RootOps.recordSessionStart(this);
         getWindow().setStatusBarColor(Color.parseColor("#080B12"));
         getWindow().setNavigationBarColor(Color.parseColor("#080B12"));
 
