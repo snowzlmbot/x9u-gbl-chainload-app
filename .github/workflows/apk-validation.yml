@@ -44,6 +44,19 @@ jobs:
           sha256sum --check SHA256SUMS
           test -s "x9u-root-flasher-v${version_name}.apk"
 
+      - name: Verify embedded preload hash matches Java guard
+        run: |
+          set -eu
+          version_name=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' android-app/app/build.gradle.kts)
+          apk="dist/x9u-root-flasher-v${version_name}.apk"
+          expected=$(sed -n 's/^[[:space:]]*"\([0-9a-f]\{64\}\)";$/\1/p' android-app/app/src/main/java/dev/koaan/x9uflasher/RootOps.java | head -n 1)
+          test -n "$expected"
+          mkdir -p "$RUNNER_TEMP/x9u-apk-check"
+          unzip -p "$apk" lib/arm64-v8a/libx9upreload.so > "$RUNNER_TEMP/x9u-apk-check/libx9upreload.so"
+          actual=$(sha256sum "$RUNNER_TEMP/x9u-apk-check/libx9upreload.so" | cut -d' ' -f1)
+          test "$expected" = "$actual"
+          printf 'preload hash: %s\n' "$actual"
+
       - name: Upload validation APK
         uses: actions/upload-artifact@v4
         env:

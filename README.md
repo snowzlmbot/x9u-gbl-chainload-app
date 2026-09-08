@@ -160,7 +160,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.10.apk
+adb install -r dist/x9u-root-flasher-v0.2.11.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
@@ -170,7 +170,7 @@ public distribution.
 ## Automated releases
 
 `.github/workflows/release.yml` builds and publishes an APK whenever a tag
-matching the app version is pushed, such as `v0.2.10`. It can also be run
+matching the app version is pushed, such as `v0.2.11`. It can also be run
 manually with the same tag. The workflow checks the APK checksum, uploads a
 workflow artifact, and creates or updates the corresponding GitHub Release.
 

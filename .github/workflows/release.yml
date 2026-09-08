@@ -76,6 +76,18 @@ jobs:
           cd dist
           sha256sum --check SHA256SUMS
 
+      - name: Verify embedded preload hash matches Java guard
+        run: |
+          set -eu
+          apk="dist/${{ steps.version.outputs.artifact }}"
+          expected=$(sed -n 's/^[[:space:]]*"\([0-9a-f]\{64\}\)";$/\1/p' android-app/app/src/main/java/dev/koaan/x9uflasher/RootOps.java | head -n 1)
+          test -n "$expected"
+          mkdir -p "$RUNNER_TEMP/x9u-apk-check"
+          unzip -p "$apk" lib/arm64-v8a/libx9upreload.so > "$RUNNER_TEMP/x9u-apk-check/libx9upreload.so"
+          actual=$(sha256sum "$RUNNER_TEMP/x9u-apk-check/libx9upreload.so" | cut -d' ' -f1)
+          test "$expected" = "$actual"
+          printf 'preload hash: %s\n' "$actual"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
