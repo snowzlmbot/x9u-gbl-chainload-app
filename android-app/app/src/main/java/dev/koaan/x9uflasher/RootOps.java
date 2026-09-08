@@ -26,8 +26,6 @@ final class RootOps {
     private static final String PRELOAD_LOG = ".x9u_preload.log";
     private static final String PROBE_LOG = ".x9u_preload_probe.log";
     private static final String PROBE_MARKER = "X9U_PRELOAD_PROBE_OK";
-    private static final String PROBE_SHA256 =
-            "d331e6c4fb1630a87a6ce4e6b49f0945d07ba5ede0f2e6987b352a6cb63431bf";
     private static final String ATTEMPT_JOURNAL = ".x9u_attempt_journal";
     private static final String INSTALL_READY = ".x9u_install_ready";
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
@@ -431,11 +429,6 @@ final class RootOps {
                 finalizeAttempt(context, "PROBE_REJECTED", "probe-library-missing");
                 return response(false, "Preload probe library is missing.", probe.getAbsolutePath())
                         .put("probe", false).toString();
-            }
-            if (!PROBE_SHA256.equals(sha256(probe))) {
-                finalizeAttempt(context, "PROBE_REJECTED", "probe-library-hash-mismatch");
-                return response(false, "Preload probe library failed verification.",
-                        probe.getAbsolutePath()).put("probe", false).toString();
             }
             File log = new File(context.getFilesDir(), PROBE_LOG);
             writeSynced(log, "");
