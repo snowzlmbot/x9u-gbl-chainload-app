@@ -23,6 +23,7 @@ final class RootOps {
     private static final String BROKER_REQUEST = ".x9u_root_request";
     private static final String BROKER_RESPONSE = ".x9u_root_response";
     private static final String BROKER_LOG = ".x9u_root_broker.log";
+    private static final String PRELOAD_LOG = ".x9u_preload.log";
     private static final String ATTEMPT_JOURNAL = ".x9u_attempt_journal";
     private static final String INSTALL_READY = ".x9u_install_ready";
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
@@ -103,6 +104,27 @@ final class RootOps {
     private static CommandResult command(long timeoutSeconds, String... arguments)
             throws Exception {
         return command(timeoutSeconds, null, arguments);
+    }
+
+    private static CommandResult commandToFile(
+            long timeoutSeconds, String[] environment, File outputFile, String... arguments)
+            throws Exception {
+        ProcessBuilder builder = new ProcessBuilder(arguments).redirectErrorStream(true);
+        if (environment != null) {
+            for (int i = 0; i + 1 < environment.length; i += 2) {
+                builder.environment().put(environment[i], environment[i + 1]);
+            }
+        }
+        builder.redirectOutput(ProcessBuilder.Redirect.appendTo(outputFile));
+        Process process = builder.start();
+        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+            process.destroy();
+            if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+            }
+            throw new IOException("Command timed out after " + timeoutSeconds + " seconds.");
+        }
+        return new CommandResult(process.exitValue(), "");
     }
 
     private static String property(String name) {
@@ -253,8 +275,39 @@ final class RootOps {
                 + " uptime=" + (uptime.isEmpty() ? "unknown" : uptime);
     }
 
+    private static String pstoreDiagnostics() {
+        File pstore = new File("/sys/fs/pstore");
+        if (!pstore.isDirectory()) {
+            return "pstore=unavailable";
+        }
+        File[] entries = pstore.listFiles();
+        if (entries == null || entries.length == 0) {
+            return "pstore=empty";
+        }
+        StringBuilder result = new StringBuilder("pstore=");
+        for (File entry : entries) {
+            if (!entry.isFile()) {
+                continue;
+            }
+            if (result.length() > 7) {
+                result.append(',');
+            }
+            result.append(entry.getName());
+            try {
+                String content = readTail(entry, 4000);
+                if (!content.isEmpty()) {
+                    result.append("\n--- ").append(entry.getName()).append(" ---\n")
+                            .append(content);
+                }
+            } catch (Throwable ignored) {
+                result.append("(unreadable)");
+            }
+        }
+        return result.toString();
+    }
+
     static void recordSessionStart(Context context) {
-        recordAttempt(context, "APP_START", bootDiagnostics());
+        recordAttempt(context, "APP_START", bootDiagnostics() + "\n" + pstoreDiagnostics());
     }
 
     private static void recordAttempt(Context context, String phase, String detail) {
@@ -366,7 +419,9 @@ final class RootOps {
             String preloadHash = preload.isFile() ? sha256(preload) : "missing";
             String compatibility = compatibilityProblem();
             File brokerLog = new File(context.getFilesDir(), BROKER_LOG);
+            File preloadLog = new File(context.getFilesDir(), PRELOAD_LOG);
             String lastLog = brokerLog.isFile() ? readTail(brokerLog, 12000) : "";
+            String preloadOutput = preloadLog.isFile() ? readTail(preloadLog, 12000) : "";
             return new JSONObject()
                     .put("ok", true)
                     .put("root", rootAvailable(context))
@@ -377,7 +432,9 @@ final class RootOps {
                     .put("supported", compatibility == null)
                     .put("compatibilityProblem", compatibility == null ? "" : compatibility)
                     .put("lastLog", lastLog)
+                    .put("preloadOutput", preloadOutput)
                     .put("attemptJournal", attemptJournal(context))
+                    .put("pstore", pstoreDiagnostics())
                     .put("ablHash", ABL_SHA256)
                     .put("efiHash", EFI_SHA256)
                     .put("emptyEfispHash", EMPTY_EFISP_SHA256)
@@ -420,18 +477,23 @@ final class RootOps {
             new File(home, BROKER_REQUEST + ".pending").delete();
             new File(home, BROKER_RESPONSE).delete();
             File brokerLog = new File(home, BROKER_LOG);
+            File preloadLog = new File(home, PRELOAD_LOG);
+            writeSynced(preloadLog, "");
+            recordAttempt(context, "PRELOAD_EXEC_START", "log=" + PRELOAD_LOG);
 
             File brokerScript = new File(home, BROKER_SCRIPT);
             String launch = "/system/bin/sh " + shellQuote(brokerScript.getAbsolutePath())
                     + " </dev/null >>" + shellQuote(brokerLog.getAbsolutePath()) + " 2>&1 &";
-            CommandResult exploit = command(300,
+            CommandResult exploit = commandToFile(300,
                     new String[]{
                             "LD_PRELOAD", preload.getAbsolutePath(),
                             "X9U_HOME", home.getAbsolutePath(),
                             "HOME", home.getAbsolutePath(),
                             "TMPDIR", home.getAbsolutePath()
                     },
+                    preloadLog,
                     "/system/bin/sh", "-c", launch);
+            recordAttempt(context, "PRELOAD_EXEC_RETURN", "exit=" + exploit.exitCode);
 
             recordAttempt(context, "WAITING_FOR_BROKER", "exploitExit=" + exploit.exitCode);
             BrokerResult broker = brokerCommand(context, "PING", 15000L);

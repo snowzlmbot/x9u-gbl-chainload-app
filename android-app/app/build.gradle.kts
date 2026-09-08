@@ -12,8 +12,8 @@ android {
         applicationId = "dev.koaan.x9uflasher"
         minSdk = 29
         targetSdk = 36
-        versionCode = 203
-        versionName = "0.2.3"
+        versionCode = 204
+        versionName = "0.2.4"
     }
 
     packaging {
