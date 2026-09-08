@@ -72,8 +72,12 @@ respond() {
   mv -f "$TMP" "$RESPONSE"
 }
 
-rm -f "$REQUEST" "$RESPONSE" "$OPLOG" \
+rm -f "$REQUEST" "$RESPONSE" \
   "$VERIFY_A" "$VERIFY_B" "$VERIFY_EFI" "$VERIFY_EMPTY"
+{
+  printf '\n[%s] broker-start pid=%s uid=%s\n' "$(date +%s)" "$$" "$(id -u)"
+  sync
+} >>"$OPLOG" 2>&1
 printf '%s\n' "$$" >"$READY.tmp"
 chmod 0644 "$READY.tmp"
 mv -f "$READY.tmp" "$READY"
@@ -95,15 +99,17 @@ while true; do
   IDLE_TICKS=0
   TOKEN=$(sed -n '1p' "$REQUEST")
   OP=$(sed -n '2p' "$REQUEST")
-  rm -f "$REQUEST" "$OPLOG"
+  rm -f "$REQUEST"
 
   case "$OP" in
     PING)
       {
+        printf '\n[%s] operation=PING\n' "$(date +%s)"
         id
         grep '^Seccomp:' /proc/self/status 2>/dev/null || true
         test "$(id -u)" -eq 0
-      } >"$OPLOG" 2>&1
+        sync
+      } >>"$OPLOG" 2>&1
       RC=$?
       chmod 0644 "$OPLOG" 2>/dev/null
       if [ "$RC" -eq 0 ]; then
@@ -129,7 +135,7 @@ while true; do
         test -b /dev/block/by-name/abl_a
         test -b /dev/block/by-name/abl_b
         test -b /dev/block/by-name/efisp
-
+        printf '\n[%s] operation=FLASH\n' "$(date +%s)"
         echo "Writing abl.img to abl_a."
         dd if="$ABL" of=/dev/block/by-name/abl_a bs=1048576 conv=fsync
         echo "Writing abl.img to abl_b."
@@ -150,7 +156,7 @@ while true; do
         chmod 0644 "$INSTALL_READY.tmp.$$"
         mv -f "$INSTALL_READY.tmp.$$" "$INSTALL_READY"
         echo FLASH_VERIFY_OK
-      ) >"$OPLOG" 2>&1
+      ) >>"$OPLOG" 2>&1
       RC=$?
       chmod 0644 "$OPLOG" 2>/dev/null
       if [ "$RC" -eq 0 ]; then
@@ -173,6 +179,7 @@ while true; do
         test "$(wc -c <"$EMPTY_EFISP")" -eq "$EMPTY_EFISP_SIZE"
         test -b /dev/block/by-name/efisp
 
+        printf '\n[%s] operation=UNINSTALL\n' "$(date +%s)"
         echo "Writing the verified empty efisp.img to efisp."
         dd if="$EMPTY_EFISP" of=/dev/block/by-name/efisp bs=1048576 conv=fsync
         sync
@@ -186,7 +193,7 @@ while true; do
         chmod 0644 "$UNINSTALL_READY.tmp.$$"
         mv -f "$UNINSTALL_READY.tmp.$$" "$UNINSTALL_READY"
         echo UNINSTALL_VERIFY_OK
-      ) >"$OPLOG" 2>&1
+      ) >>"$OPLOG" 2>&1
       RC=$?
       chmod 0644 "$OPLOG" 2>/dev/null
       if [ "$RC" -eq 0 ]; then
@@ -212,6 +219,7 @@ while true; do
         continue
       fi
       {
+        printf '\n[%s] operation=REBOOT_FASTBOOT\n' "$(date +%s)"
         echo "Requesting reboot to recovery / fastbootd."
         sync
         /system/bin/svc power reboot fastboot
@@ -221,7 +229,7 @@ while true; do
         /system/bin/reboot fastboot
         sleep 5
         echo "All reboot methods returned and Android is still running."
-      } >"$OPLOG" 2>&1
+      } >>"$OPLOG" 2>&1
       chmod 0644 "$OPLOG" 2>/dev/null
       respond "$TOKEN" 1 "Could not reboot to recovery / fastbootd."
       ;;
