@@ -18,6 +18,13 @@ are shown again after the app restarts, so a crash or reboot can be diagnosed
 without relying on volatile UI state. Reinstalling with `adb install -r` keeps
 the records; clearing app data removes them.
 
+For diagnosis, the app also includes a separate **preload load probe**. The
+probe only loads a small constructor that appends `X9U_PRELOAD_PROBE_OK` to an
+app-private file and calls `fsync`; it does not call the kernel exploit, obtain
+root, change SELinux, write partitions, or start the broker. Use this probe
+first to distinguish dynamic-loader/device-environment failures from failures
+inside the firmware-specific exploit path.
+
 Created by [koaaN](https://github.com/koaaN). The matching CVE-2026-43499
 exploit and preload builder is available at
 [koaaN/x9u-preload-builder](https://github.com/koaaN/x9u-preload-builder).
@@ -122,6 +129,7 @@ partition-writing code can run.
 | File | SHA-256 |
 |---|---|
 | `libx9upreload.so` | `c76e038993aa085b4cbf0d7cec179cbb91247793d5bdac2b0dbc8e4312624e76` |
+| `libx9uprobe.so` source build (no-exploit diagnostic probe) | `d331e6c4fb1630a87a6ce4e6b49f0945d07ba5ede0f2e6987b352a6cb63431bf` |
 | `abl.img` | `4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d` |
 | `installed-mode2.efi` | `35560f8e6fd706a3768f26f692467491c90425881a8d80bf237341215c04cac5` |
 | `efisp.img` (3 MiB, all zero) | `bbd05cf6097ac9b1f89ea29d2542c1b7b67ee46848393895f5a9e43fa1f621e5` |
@@ -132,7 +140,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.4.apk
+adb install -r dist/x9u-root-flasher-v0.2.5.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
@@ -142,7 +150,7 @@ public distribution.
 ## Automated releases
 
 `.github/workflows/release.yml` builds and publishes an APK whenever a tag
-matching the app version is pushed, such as `v0.2.4`. It can also be run
+matching the app version is pushed, such as `v0.2.5`. It can also be run
 manually with the same tag. The workflow checks the APK checksum, uploads a
 workflow artifact, and creates or updates the corresponding GitHub Release.
 

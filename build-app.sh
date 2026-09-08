@@ -11,6 +11,9 @@ if [[ -z "$version_name" ]]; then
 fi
 artifact="x9u-root-flasher-v${version_name}.apk"
 
+ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-${sdk_root}/ndk/27.2.12479018}" \
+  "$project_dir/tools/build-preload-probe.sh"
+
 ANDROID_HOME="$sdk_root" \
   "$project_dir/android-app/gradlew" -p "$project_dir/android-app" :app:assembleRelease
 

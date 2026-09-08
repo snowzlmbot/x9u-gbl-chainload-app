@@ -48,6 +48,7 @@ html.light{--bg:#f3f5fa;--top:#ffffff;--card:#ffffff;--card2:#f0f3f9;--line:#d9d
       <div id="flashStep" class="step"><span class="num">2</span><span><b>Install GBL chainload</b><small>Write ABL to both slots and the EFI to efisp</small></span><span class="mark">○</span></div>
     </div>
     <button id="rootButton" class="button primary" onclick="enableRoot('log')">Enable temporary root</button>
+    <button id="probeButton" class="button" onclick="runPreloadProbe()">Run preload load probe (no root)</button>
     <button id="flashButton" class="button danger" disabled onclick="openFlashDialog()">Flash supplied images</button>
   </section>
 
@@ -109,7 +110,7 @@ html.light{--bg:#f3f5fa;--top:#ffffff;--card:#ffffff;--card2:#f0f3f9;--line:#d9d
     <div class="title">X9 Ultra GBL Chainload</div>
     <p class="about-note">Two-step temporary-root and GBL-chainload installer. It does not unlock the Android bootloader or format user data.</p>
     <div class="about-list">
-      <div class="about-row"><small>VERSION</small><strong>0.2.4</strong></div>
+      <div class="about-row"><small>VERSION</small><strong>0.2.5</strong></div>
       <div class="about-row"><small>SUPPORTED PROJECT IDS</small><strong>25021 · 25022 · 25211</strong></div>
       <div class="about-row"><small>KNOWN MODEL LABELS</small><strong>PMA110 · PMA120 · CPH2841<br><span style="color:var(--muted);font-size:11px">Informational only; firmware may change the model label.</span></strong></div>
       <div class="about-row"><small>KERNEL TARGET</small><strong>6.12.58-android16-6-g7704a1ae279b-ab15213644-4k</strong></div>
@@ -166,6 +167,7 @@ function done(id,on){const e=byId(id);e.classList.toggle('done',on);e.querySelec
 function updateButtons(){const compatible=device.supported&&device.firmwareCompatible&&device.kernelCompatible;byId('flashButton').disabled=!rootReady||!compatible||flashDone||uninstallDone;byId('rootButton').disabled=rootReady||!compatible||uninstallDone;byId('rootButton').textContent=uninstallDone?'Uninstall pending reboot':(rootReady?'Temporary root available':(flashDone?'Enable root for reboot':'Enable temporary root'));byId('installRebootButton').disabled=!rootReady||!compatible||!flashDone;done('rootStep',compatible&&(rootReady||flashDone));done('flashStep',flashDone);byId('nextCard').classList.toggle('show',flashDone);byId('uninstallRootButton').disabled=rootReady||!compatible;byId('uninstallRootButton').textContent=rootReady?'Temporary root available':(uninstallDone?'Enable root for reboot':'Enable temporary root');byId('uninstallButton').disabled=!rootReady||!compatible||uninstallDone;byId('rebootButton').disabled=!rootReady||!compatible||!uninstallDone;done('uninstallRootStep',compatible&&(rootReady||uninstallDone));done('uninstallFlashStep',uninstallDone);byId('recoveryCard').classList.toggle('show',uninstallDone)}
 function setStatus(result){const compatible=device.supported&&device.firmwareCompatible&&device.kernelCompatible;rootReady=!!result.root&&compatible;if(result.installReady){flashDone=true;uninstallDone=false}if(result.uninstallReady){uninstallDone=true;flashDone=false}updateButtons()}
 function enableRoot(target='log'){busy(true,'Running temporary-root chain…');X9U.enableRoot(callback(r=>{busy(false);appendLog('Temporary root',r,target);rootReady=!!r.root;updateButtons()}))}
+function runPreloadProbe(){busy(true,'Running safe preload load probe…');X9U.preloadLoadProbe(callback(r=>{busy(false);appendLog('Preload load probe (no root)',r);}))}
 function openFlashDialog(){byId('phrase').value='';validatePhrase();byId('flashDialog').classList.add('show')}
 function closeFlashDialog(){byId('flashDialog').classList.remove('show')}
 function validatePhrase(){byId('confirmFlash').disabled=byId('phrase').value!=='FLASH'}
