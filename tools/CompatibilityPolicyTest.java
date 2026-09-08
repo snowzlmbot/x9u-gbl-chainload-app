@@ -16,12 +16,12 @@ public final class CompatibilityPolicyTest {
         require(CompatibilityPolicy.targetRecognized(
                         "25022", "PMA120domestic_11_16.0.10.501(CN01)_2026073000090000"),
                 "factory build alias should identify the PMA120 .501 target");
-        require(!CompatibilityPolicy.firmwareCompatible(
+        require(CompatibilityPolicy.firmwareCompatible(
                         "25022", "PMA120_16.0.10.501(CN01B110P02)"),
-                "PMA120 16.0.10.501 must remain unvalidated");
+                "PMA120 16.0.10.501 must match the generated firmware policy");
         require(CompatibilityPolicy.problem(
-                        "PMA120", "25022", "PMA120_16.0.10.501(CN01B110P02)", KERNEL) != null,
-                "PMA120 16.0.10.501 must fail closed");
+                        "PMA120", "25022", "PMA120_16.0.10.501(CN01B110P02)", KERNEL) == null,
+                "generated PMA120 16.0.10.501 target should pass policy");
         require(CompatibilityPolicy.problem(
                         "PMA110", "25021", "PMA110_16.0.9.402(CN01)", KERNEL) == null,
                 "documented PMA110 release should pass the policy");

@@ -47,6 +47,9 @@ final class CompatibilityPolicy {
             return hasExactRelease(firmwareValue, "PMA110", "16.0.9.402")
                     || hasExactRelease(firmwareValue, "PMA110", "16.0.7.211");
         }
+        if (PMA120_PROJECT_ID.equals(projectValue)) {
+            return isPma120501(firmwareValue);
+        }
         if (CPH2841_PROJECT_ID.equals(projectValue)) {
             return hasExactRelease(firmwareValue, "CPH2841", "16.0.9.403");
         }
@@ -58,9 +61,6 @@ final class CompatibilityPolicy {
         String projectValue = normalize(project);
         String firmwareValue = normalize(firmware);
         String kernelValue = normalize(kernel);
-        if (targetRecognized(projectValue, firmwareValue)) {
-            return "Target PMA120 .501 identified, but no packaged payload has been validated on this build; nothing was run.";
-        }
         if (!supportedProject(projectValue)) {
             return "Unsupported project ID: "
                     + (projectValue.isEmpty() ? "unknown" : projectValue)

@@ -6,9 +6,11 @@ Standalone Android app for the OPPO Find X9 Ultra. It packages the validated
 temporary-root `preload.so` and the two separately supplied GBL chainload
 payloads. It writes those payloads directly and contains no `unlocker` binary.
 
-This app does **not** unlock the Android bootloader. It enables the supplied
-GBL chainload path by writing ABL to both slots and `installed-mode2.efi` to
-the `efisp` partition.
+The app does **not** unlock the Android bootloader. It enables the supplied
+GBL chainload path by writing ABL to both slots and `installed-mode2.efi` to the
+`efisp` partition. The embedded temporary-root preload is generated from the
+matching PMA120 `.501` OTA images and is accepted only on that exact firmware
+family and kernel release.
 
 The Uninstall page obtains temporary root, writes the packaged all-zero
 `efisp.img` to `efisp`, and reads the entire image back before offering a
@@ -103,11 +105,13 @@ The only accepted kernel target is:
 6.12.58-android16-6-g7704a1ae279b-ab15213644-4k
 ```
 
-The packaged payload is only considered validated for the firmware releases
-listed in the builder documentation. **PMA120 `16.0.10.501`
-(`PMA120_16.0.10.501(CN01B110P02)`) is not in that validated list and the app
-must refuse to run the preload or write partitions on it.** Do not bypass this
-gate by changing only the displayed firmware string.
+The packaged payload was generated from the matching PMA120 `16.0.10.501`
+(`PMA120_16.0.10.501(CN01B110P02)`) `boot.img` and `xbl_config.img`. The app
+accepts this firmware family only together with the exact kernel target and the
+embedded payload digest below. This is a build-time compatibility result, not
+proof of successful execution on every handset; on-device validation still
+requires a device owner and recovery path. Do not bypass this gate by changing
+only the displayed firmware string.
 
 Any other project, firmware, or kernel is rejected before the preload or
 partition-writing code can run.
@@ -116,7 +120,7 @@ partition-writing code can run.
 
 | File | SHA-256 |
 |---|---|
-| `libx9upreload.so` | `32ac2f03f56955c41032157aa53f23590c3f6a1595fccc025ad991322e07f7f6` |
+| `libx9upreload.so` | `c76e038993aa085b4cbf0d7cec179cbb91247793d5bdac2b0dbc8e4312624e76` |
 | `abl.img` | `4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d` |
 | `installed-mode2.efi` | `35560f8e6fd706a3768f26f692467491c90425881a8d80bf237341215c04cac5` |
 | `efisp.img` (3 MiB, all zero) | `bbd05cf6097ac9b1f89ea29d2542c1b7b67ee46848393895f5a9e43fa1f621e5` |
@@ -127,7 +131,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.1.apk
+adb install -r dist/x9u-root-flasher-v0.2.2.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
@@ -137,7 +141,7 @@ public distribution.
 ## Automated releases
 
 `.github/workflows/release.yml` builds and publishes an APK whenever a tag
-matching the app version is pushed, such as `v0.2.1`. It can also be run
+matching the app version is pushed, such as `v0.2.2`. It can also be run
 manually with the same tag. The workflow checks the APK checksum, uploads a
 workflow artifact, and creates or updates the corresponding GitHub Release.
 
