@@ -31,7 +31,7 @@ entry/completion and returns without invoking the kernel exploit. A successful
 probe proves that this exact ELF can be loaded and return safely; it does not
 prove Root or exploit compatibility.
 
-The `v0.2.7` build also includes an **exploit preflight**. It performs only the
+The `v0.2.8` build also includes an **exploit preflight**. It performs only the
 payload's user-space initialization, CPU selection, startup-context logging, and
 CPU pinning, then returns before KASLR leakage, futex/pselect activity, kernel
 writes, SELinux changes, or Root setup. The normal Root action additionally
@@ -148,7 +148,7 @@ partition-writing code can run.
 
 | File | SHA-256 |
 |---|---|
-| `libx9upreload.so` (PMA120 `.501` preflight rebuild) | `2306e6dce3e8871cb5496f1159f9b1884ff61cb9f733e23257095dc15de31fd1` |
+| `libx9upreload.so` (PMA120 `.501` exact-shift rebuild) | `74fc5b56d8bd196c5e122453f3a184efe674bbf6be0710c921fa26aeffd6bc47` |
 | `libx9uprobe.so` source build (no-exploit diagnostic probe) | `d331e6c4fb1630a87a6ce4e6b49f0945d07ba5ede0f2e6987b352a6cb63431bf` |
 | `abl.img` | `4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d` |
 | `installed-mode2.efi` | `35560f8e6fd706a3768f26f692467491c90425881a8d80bf237341215c04cac5` |
@@ -160,7 +160,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.7.apk
+adb install -r dist/x9u-root-flasher-v0.2.8.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
@@ -170,7 +170,7 @@ public distribution.
 ## Automated releases
 
 `.github/workflows/release.yml` builds and publishes an APK whenever a tag
-matching the app version is pushed, such as `v0.2.7`. It can also be run
+matching the app version is pushed, such as `v0.2.8`. It can also be run
 manually with the same tag. The workflow checks the APK checksum, uploads a
 workflow artifact, and creates or updates the corresponding GitHub Release.
 
