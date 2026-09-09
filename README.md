@@ -133,10 +133,13 @@ proof of successful execution on every handset; on-device validation still
 requires a device owner and recovery path. Do not bypass this gate by changing
 only the displayed firmware string.
 
-The `v0.2.6` payload was rebuilt from OTA archive revision
-`538e0901da8d70985370bf42f74657bd348ff997` with builder revision
-`18808341a788c2ccb5fb3f071d37d6009c959199` plus the audited constructor probe
-patch in `tools/preload-constructor-patch.diff`. The exact input digests are
+The `v0.2.13` diagnostic payload adds native slide-transition state logging
+around the existing futex/pselect boundary. It does not change firmware
+offsets, syscall parameters, retry policy, or partition operations. Its payload
+SHA-256 is
+`2a89701a352edf378bae963bfc6da38b06e98a19bb416cedc8f08cd266637b91`.
+
+The exact input digests are
 `boot.img=eaabe8a7df06d70fb0b40a0431d230fe54f19e124cfd3a3df408f053d1afd1de`
 and
 `xbl_config.img=682ec89d49f33f100d689c1f5b5dd83ae9751d8ea5fccfa6bf62fc03262b5e31`.
@@ -148,7 +151,7 @@ partition-writing code can run.
 
 | File | SHA-256 |
 |---|---|
-| `libx9upreload.so` (PMA120 `.501` exact-shift/cred-only/no-SELinux-write rebuild) | `77a275507f46c219cfc58d94890411afe3e36f8f7857519290fe3dafd7fbed8d` |
+| `libx9upreload.so` (v0.2.13 PMA120 `.501` slide-transition diagnostic rebuild) | `2a89701a352edf378bae963bfc6da38b06e98a19bb416cedc8f08cd266637b91` |
 | `libx9uprobe.so` source build (no-exploit diagnostic probe) | `d331e6c4fb1630a87a6ce4e6b49f0945d07ba5ede0f2e6987b352a6cb63431bf` |
 | `abl.img` | `4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d` |
 | `installed-mode2.efi` | `35560f8e6fd706a3768f26f692467491c90425881a8d80bf237341215c04cac5` |
@@ -160,7 +163,7 @@ A complete JDK with `javac` and Android SDK 36 are required.
 
 ```sh
 ANDROID_SDK_ROOT=/tmp/android-sdk ./build-app.sh
-adb install -r dist/x9u-root-flasher-v0.2.12.apk
+adb install -r dist/x9u-root-flasher-v0.2.13.apk
 ```
 
 The current local release build uses the Android debug signing key so it is
