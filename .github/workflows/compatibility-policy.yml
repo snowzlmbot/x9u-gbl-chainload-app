@@ -28,6 +28,22 @@ jobs:
             android-app/app/src/main/java/dev/koaan/x9uflasher/CompatibilityPolicy.java \
             tools/CompatibilityPolicyTest.java
           java -cp "$RUNNER_TEMP/x9u-policy" dev.koaan.x9uflasher.CompatibilityPolicyTest
+      - name: Verify upstream diagnostic patch applies cleanly
+        run: |
+          set -eu
+          builder_dir=$(mktemp -d "$RUNNER_TEMP/x9u-builder.XXXXXX")
+          builder_sha=18808341a788c2ccb5fb3f071d37d6009c959199
+          git init --quiet "$builder_dir"
+          git -C "$builder_dir" remote add origin https://github.com/koaaN/x9u-preload-builder.git
+          git -C "$builder_dir" fetch --depth 1 origin "$builder_sha"
+          git -C "$builder_dir" checkout --quiet --detach FETCH_HEAD
+          test "$(git -C "$builder_dir" rev-parse HEAD)" = "$builder_sha"
+          git -C "$builder_dir" apply --check "$GITHUB_WORKSPACE/tools/slide-transition-diagnostics.diff"
+          git -C "$builder_dir" apply "$GITHUB_WORKSPACE/tools/slide-transition-diagnostics.diff"
+          grep -F 'slide transition stage=after_requeue' "$builder_dir/source/src/slide.c"
+          grep -F 'slide transition stage=pselect_enter' "$builder_dir/source/src/slide.c"
+          printf 'Pinned upstream patch verification: PASS\n'
+
       - name: Check embedded web asset syntax
         env:
           X9U_TEMP: ${{ runner.temp }}

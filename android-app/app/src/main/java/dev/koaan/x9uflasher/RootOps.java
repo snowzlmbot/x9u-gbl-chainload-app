@@ -38,7 +38,7 @@ final class RootOps {
     private static final String UNINSTALL_READY = ".x9u_uninstall_ready";
 
     private static final String PRELOAD_SHA256 =
-            "77a275507f46c219cfc58d94890411afe3e36f8f7857519290fe3dafd7fbed8d";
+            "2a89701a352edf378bae963bfc6da38b06e98a19bb416cedc8f08cd266637b91";
     private static final String ABL_SHA256 =
             "4ad7f1db0c92f0a358e28bf18170a20533011299827d8d9a25cffd2218f1415d";
     private static final String EFI_SHA256 =
