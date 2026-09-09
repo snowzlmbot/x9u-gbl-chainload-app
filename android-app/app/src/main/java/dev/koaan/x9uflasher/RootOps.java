@@ -11,6 +11,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Locale;
@@ -461,7 +463,7 @@ final class RootOps {
                     .put("exitCode", result.exitCode)
                     .toString();
         } catch (Throwable error) {
-            finalizeAttempt(context, "FORMAL_PROBE_EXCEPTION", String.valueOf(error.getMessage()));
+            finalizeAttempt(context, "FORMAL_PROBE_EXCEPTION", throwableDetail(error));
             return failure("Formal preload constructor probe failed", error);
         }
     }
@@ -504,7 +506,7 @@ final class RootOps {
                     .put("exitCode", result.exitCode)
                     .toString();
         } catch (Throwable error) {
-            finalizeAttempt(context, "PREFLIGHT_EXCEPTION", String.valueOf(error.getMessage()));
+            finalizeAttempt(context, "PREFLIGHT_EXCEPTION", throwableDetail(error));
             return failure("Exploit preflight failed", error);
         }
     }
@@ -546,7 +548,7 @@ final class RootOps {
                     .put("exitCode", result.exitCode)
                     .toString();
         } catch (Throwable error) {
-            finalizeAttempt(context, "PROBE_EXCEPTION", String.valueOf(error.getMessage()));
+            finalizeAttempt(context, "PROBE_EXCEPTION", throwableDetail(error));
             return failure("Preload load probe failed", error);
         }
     }
@@ -660,7 +662,7 @@ final class RootOps {
                     .put("exploitExit", exploit.exitCode)
                     .toString();
         } catch (Throwable error) {
-            finalizeAttempt(context, "ROOT_EXCEPTION", String.valueOf(error.getMessage()));
+            finalizeAttempt(context, "ROOT_EXCEPTION", throwableDetail(error));
             return failure("Temporary-root attempt failed", error);
         }
     }
@@ -843,11 +845,20 @@ final class RootOps {
 
     static String failure(String message, Throwable error) {
         try {
-            String detail = error == null ? "" : String.valueOf(error.getMessage());
+            String detail = throwableDetail(error);
             return response(false, message, detail).toString();
         } catch (Exception ignored) {
             return "{\"ok\":false,\"message\":\"Operation failed.\"}";
         }
+    }
+
+    private static String throwableDetail(Throwable error) {
+        if (error == null) {
+            return "null";
+        }
+        StringWriter buffer = new StringWriter();
+        error.printStackTrace(new PrintWriter(buffer));
+        return buffer.toString().trim();
     }
 
     private static String sha256(File file) throws Exception {
